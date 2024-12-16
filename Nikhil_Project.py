@@ -5,20 +5,28 @@ import re
 import random
 import string
 import pandas as pd
+import secrets
+import unittest
 from ttkbootstrap import Style
 
-# Load the common passwords from a CSV file
+# Load the common passwords from a CSV file and cache them
+COMMON_PASSWORDS = set()
+
 def load_common_passwords():
     try:
         df = pd.read_csv('users.csv', header=None)
         return set(df[0].astype(str).str.strip().tolist())
-    except FileNotFoundError:
-        print("Error: common_passwords.csv not found. Please check the file path.")
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        print("Error: The file is missing or empty. Please provide a valid CSV file.")
+        return set()
+    except Exception as e:
+        print(f"Unexpected error occurred: {e}")
         return set()
 
-COMMON_PASSWORDS = load_common_passwords()
+if not COMMON_PASSWORDS:
+    COMMON_PASSWORDS = load_common_passwords()
 
-# Function to calculate entropy
+# Function to calculate entropy with optimized charset
 def calculate_entropy(password):
     charset_size = 0
     if any(char.islower() for char in password):
@@ -64,7 +72,7 @@ def check_password_strength(password):
     else:
         return "Strong", "Good password! It's strong and has high entropy."
 
-# Function to generate a strong password
+# Function to generate a strong password using `secrets`
 def generate_strong_password(length=12):
     if length < 8:
         length = 8
@@ -75,13 +83,13 @@ def generate_strong_password(length=12):
     special_chars = "!@#$%^&*()-_=+[{]};:'\",<.>/?\\|`~"
 
     password = [
-        random.choice(lowercase),
-        random.choice(uppercase),
-        random.choice(digits),
-        random.choice(special_chars)
+        secrets.choice(lowercase),
+        secrets.choice(uppercase),
+        secrets.choice(digits),
+        secrets.choice(special_chars)
     ]
     all_chars = lowercase + uppercase + digits + special_chars
-    password += random.choices(all_chars, k=length - 4)
+    password += [secrets.choice(all_chars) for _ in range(length - 4)]
 
     random.shuffle(password)
     return ''.join(password)
@@ -147,3 +155,18 @@ def run_gui():
 
 # Run the GUI
 run_gui()
+
+# Unit Test for Functions
+class TestPasswordFunctions(unittest.TestCase):
+    def test_entropy_calculation(self):
+        self.assertGreater(calculate_entropy("A1#abc"), 28)
+
+    def test_generate_strong_password(self):
+        password = generate_strong_password()
+        self.assertGreater(calculate_entropy(password), 28)
+        self.assertTrue(any(char.isupper() for char in password))
+        self.assertTrue(any(char.isdigit() for char in password))
+        self.assertTrue(any(char in "!@#$%^&*()-_=+[{]};:'\",<.>/?\\|`~" for char in password))
+
+if __name__ == "__main__":
+    unittest.main()
